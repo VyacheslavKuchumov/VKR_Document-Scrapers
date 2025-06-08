@@ -2,6 +2,33 @@ import pandas as pd
 import requests
 
 
+def send_data_to_api(df: pd.DataFrame, api_url: str):
+    """
+    Sends each row of the DataFrame to the specified FastAPI endpoint using POST.
+    """
+    headers = {'Content-Type': 'application/json'}
+    success_count, fail_count = 0, 0
+
+    for idx, row in df.iterrows():
+        payload = {
+            "okved_group": row["okved_group"],
+            "worker_num": round(row["worker_num"], 3),
+            "year": int(row["year"])
+        }
+
+        response = requests.post(api_url, json=payload, headers=headers)
+        if response.status_code == 201:
+            success_count += 1
+        else:
+            fail_count += 1
+            print(f"❌ Failed at row {idx}: {response.status_code} — {response.text}")
+
+    print(f"\n✅ Sent {success_count} rows successfully.")
+    if fail_count:
+        print(f"⚠️ Failed to send {fail_count} rows.")
+
+
+
 def parse_okved(file_path: str) -> pd.DataFrame:
     """
     Reads the Excel file, extracts and reshapes the data from sheets '1' and '2',
@@ -61,3 +88,9 @@ def parse_okved(file_path: str) -> pd.DataFrame:
 df = parse_okved("Среднегодовая_численность_занятых_по_видам_деятельности_в_Пермском.xlsx")
 
 print(df.head())  # Вывод первых строк для проверки
+
+# Отправка данных на API
+api_url = "http://localhost:8000/api/minstat-workers/"
+send_data_to_api(df, api_url)
+
+
