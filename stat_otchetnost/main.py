@@ -1,56 +1,6 @@
 import pandas as pd
 import requests
 
-# OKVED_API = "http://localhost:8000/okved_sections/"
-# EMPLOYMENT_API = "http://127.0.0.1:8000/employment_minstat/"
-
-OKVED_API = "https://vkr-api.vyachik-dev.ru/okved_sections/"
-EMPLOYMENT_API = "https://vkr-api.vyachik-dev.ru/employment_minstat/"
-
-def push_okveds_and_employment(df: pd.DataFrame):
-    """
-    Sends OKVEDs to FastAPI and inserts employment data per year.
-    """
-    # Create a mapping from okved_group to section ID
-    okved_to_id = {}
-
-    for okved_group in df["okved_group"].unique():
-        payload = {
-            "okved_section_name": str(okved_group),
-            "okved_section_code": "",  # optional
-            "img_url": ""  # optional
-        }
-        response = requests.post(OKVED_API, json=payload)
-        if response.status_code == 200:
-            okved_id = response.json()["id"]
-            okved_to_id[okved_group] = okved_id
-        else:
-            print(f"Failed to post OKVED: {okved_group}, {response.text}")
-
-    resp = requests.get(OKVED_API)
-    resp.raise_for_status()
-    existing = resp.json()  # [{ "id": 1, "code":"", "name":"A" }, …]
-    okved_to_id = {e["okved_section_name"]: e["id"] for e in existing}
-
-    # Send employment data
-    for _, row in df.iterrows():
-        okved_id = okved_to_id.get(row["okved_group"])
-        if not okved_id:
-            print(f"Missing ID for {row['okved_group']}, skipping")
-            continue
-
-        payload = {
-            "year": int(row["year"]),
-            "number_of_employees": float(row["worker_num"]),
-            "okved_section_id": okved_id
-        }
-        resp = requests.post(EMPLOYMENT_API, json=payload)
-        if resp.status_code != 200:
-            print(f"Failed to insert employment for {row['okved_group']} in {row['year']}:",
-                  resp.text)
-
-import pandas as pd
-
 
 def parse_okved(file_path: str) -> pd.DataFrame:
     """
@@ -99,6 +49,10 @@ def parse_okved(file_path: str) -> pd.DataFrame:
 
     # Объединяем все года и сохраняем
     result_df = pd.concat(data_frames, ignore_index=True)
+
+    # Приводим первую букву каждой группы к верхнему регистру
+    result_df["okved_group"] = result_df["okved_group"].str.capitalize()
+
     result_df.to_csv('jobs_minstat_out.csv', index=False)
     return result_df
 
@@ -106,4 +60,4 @@ def parse_okved(file_path: str) -> pd.DataFrame:
 # Запуск
 df = parse_okved("Среднегодовая_численность_занятых_по_видам_деятельности_в_Пермском.xlsx")
 
-push_okveds_and_employment(df)
+print(df.head())  # Вывод первых строк для проверки
